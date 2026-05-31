@@ -15,7 +15,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes_crawl import router as crawl_router
 from services.scheduler_service import start_scheduler
 
-# 로깅
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -34,6 +33,11 @@ app.add_middleware(
 app.include_router(crawl_router)
 
 
+@app.get("/")
+def root():
+    return {"service": "trendletter-engine", "status": "running"}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "trendletter-engine"}
@@ -42,7 +46,10 @@ def health():
 @app.on_event("startup")
 def on_startup():
     logger.info("TrendLetter Engine 시작")
-    start_scheduler()
+    try:
+        start_scheduler()
+    except Exception as e:
+        logger.error(f"스케줄러 시작 실패(무시하고 계속): {e}")
 
 
 if __name__ == "__main__":
