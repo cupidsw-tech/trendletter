@@ -1,20 +1,14 @@
-FROM python:3.12-slim
+# Playwright 공식 이미지 — Chromium + 폰트 + 의존성 모두 포함 (별도 playwright install 불필요)
+FROM mcr.microsoft.com/playwright/python:v1.52.0-noble
 
 WORKDIR /app
-
-# Playwright 브라우저 설치를 위한 시스템 패키지
-RUN apt-get update && apt-get install -y \
-    wget gnupg2 \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Playwright Chromium 설치
-RUN playwright install --with-deps chromium
-
 COPY . .
 
-EXPOSE 8000
+ENV PYTHONUNBUFFERED=1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Railway가 주입하는 $PORT 사용
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
