@@ -503,7 +503,7 @@ def _crawl_openads(url: str) -> list[Article]:
 
 
 def _fetch_openads_detail(article: Article) -> Article:
-    """오픈애즈 상세 페이지: 네이버 로그인 → 본문 + PDF 다운로드."""
+    """오픈애즈 상세 페이지: (로그인 불필요) 본문 + PDF 다운로드."""
     import os
     try:
         from playwright.sync_api import sync_playwright
@@ -518,12 +518,7 @@ def _fetch_openads_detail(article: Article) -> Article:
         with sync_playwright() as p:
             browser, ctx, page = _make_stealth_context(p)
 
-            # 로그인
-            page.goto("https://www.openads.co.kr/join/login", wait_until="networkidle", timeout=30000)
-            page.wait_for_timeout(2000)
-            _naver_login_redirect(page)
-
-            # 상세 페이지
+            # 상세 페이지 (로그인 없이 바로 접근)
             page.goto(article.url, wait_until="networkidle", timeout=30000)
             page.wait_for_timeout(2000)
 
