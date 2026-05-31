@@ -1,5 +1,5 @@
 # Playwright 공식 이미지 — Chromium + 폰트 + 의존성 모두 포함 (별도 playwright install 불필요)
-FROM mcr.microsoft.com/playwright/python:v1.52.0-noble
+FROM mcr.microsoft.com/playwright/python:v1.49.0-noble
 
 WORKDIR /app
 
