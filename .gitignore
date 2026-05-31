@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next.js
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+engine/downloads/
+engine/logs/
+*.db
+
+# env
+.env
+.env*.local
+engine/.env
+frontend/.env
+frontend/.env.local
+
+# misc
+.DS_Store
+*.log
+_dev.log
+_run*.log
+_web_test*.log
+_check.log
+_*.json
+SESSION_LOG.md
+
+# build artifacts
+frontend/tsconfig.tsbuildinfo

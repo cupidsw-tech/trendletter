@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  name          String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // 발송 채널 설정
+  deliverWeb      Boolean @default(true) @map("deliver_web")
+  deliverTelegram Boolean @default(false) @map("deliver_telegram")
+  deliverKakao    Boolean @default(false) @map("deliver_kakao")
+
+  // 텔레그램
+  telegramChatId String? @map("telegram_chat_id")
+
+  // 카카오톡
+  kakaoAccessToken  String? @map("kakao_access_token")
+  kakaoRefreshToken String? @map("kakao_refresh_token")
+
+  // 웹 푸시
+  pushSubscription String? @map("push_subscription") @db.Text
+
+  // 뉴스레터 템플릿
+  templateId String @default("compact") @map("template_id")
+
+  // 스케줄
+  scheduleHour   Int    @default(8) @map("schedule_hour")
+  scheduleMinute Int    @default(0) @map("schedule_minute")
+  timezone       String @default("Asia/Seoul")
+
+  // 요금제 (미래)
+  planId String? @map("plan_id")
+
+  sources      Source[]
+  deliveryLogs DeliveryLog[]
+
+  @@map("users")
+}
+
+model Plan {
+  id           String   @id @default(cuid())
+  name         String
+  maxSources   Int      @default(5) @map("max_sources")
+  priceMonthly Int      @default(0) @map("price_monthly")
+  features     Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("plans")
+}
+
+model Source {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  name          String
+  url           String
+  category      String    @default("기타")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  lastCrawledAt DateTime? @map("last_crawled_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  articles Article[]
+
+  @@unique([userId, url])
+  @@map("sources")
+}
+
+model Article {
+  id          String   @id @default(cuid())
+  sourceId    String   @map("source_id")
+  contentHash String   @map("content_hash")
+  title       String
+  url         String
+  date        String?
+  body        String?  @db.Text
+  summary     String?  @db.Text
+  pdfUrls     Json     @default("[]") @map("pdf_urls")
+  crawledAt   DateTime @default(now()) @map("crawled_at")
+
+  source       Source        @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  deliveryLogs DeliveryLog[]
+
+  @@unique([sourceId, contentHash])
+  @@index([sourceId, crawledAt(sort: Desc)])
+  @@map("articles")
+}
+
+model DeliveryLog {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  articleId    String    @map("article_id")
+  channel      String
+  status       String    @default("pending")
+  errorMessage String?   @map("error_message")
+  sentAt       DateTime? @map("sent_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("delivery_logs")
+}
