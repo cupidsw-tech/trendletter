@@ -31,7 +31,13 @@ NOISE_KEYWORDS = (
 
 
 def _is_noise(*texts) -> bool:
-    hay = " ".join((t or "") for t in texts).lower()
+    from urllib.parse import unquote
+    parts = []
+    for t in texts:
+        t = t or ""
+        parts.append(t)
+        parts.append(unquote(t))  # 퍼센트 인코딩된 한글 파일명/URL도 검사
+    hay = " ".join(parts).lower()
     return any(k.lower() in hay for k in NOISE_KEYWORDS)
 
 
