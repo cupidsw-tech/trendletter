@@ -10,5 +10,5 @@ COPY . .
 
 ENV PYTHONUNBUFFERED=1
 
-# Railway가 주입하는 $PORT 사용
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# main.py __main__ 가 PORT 환경변수를 읽어 기동 (쉘 치환 문제 회피)
+CMD ["python", "main.py"]
