@@ -398,11 +398,18 @@ def _crawl_iboss(url: str) -> list[Article]:
             page.goto(url, wait_until="networkidle", timeout=30000)
             page.wait_for_timeout(3000)
 
+            # 게시판 목록 번호(ab-3207) → 글 상세 번호(ab-3208-) : 보통 +1
+            m = re.search(r"/ab-(\d+)", url)
+            detail_prefix = f"/ab-{int(m.group(1)) + 1}-" if m else None
+
             for a in page.query_selector_all("a"):
                 text = (a.inner_text() or "").strip()
                 href = a.get_attribute("href") or ""
-                # ab-3208-숫자 형태의 자료실 게시글 링크
-                if text and len(text) > 10 and "/ab-3208-" in href:
+                if not text or len(text) < 8:
+                    continue
+                is_detail = (detail_prefix and detail_prefix in href) or \
+                            bool(re.search(r"/ab-\d+-\d+", href))
+                if is_detail:
                     full_url = urljoin("https://www.i-boss.co.kr", href)
                     if not any(art.url == full_url for art in articles):
                         articles.append(Article(title=text, url=full_url))
