@@ -15,7 +15,7 @@ from src.crawler import crawl_site, fetch_detail, Article as CrawlArticle
 from src.summarizer import summarize
 from src.pdf_handler import download_pdf, extract_text
 from src.utils import truncate, make_hash
-from services.delivery_service import deliver_to_user
+from services.delivery_service import deliver_to_user, deliver_combined
 
 logger = logging.getLogger("trend-letter")
 
@@ -82,19 +82,21 @@ def run_batch_crawl(db: Session, user_id: str, sources: list[dict]) -> dict:
         return {"error": "User not found"}
 
     stats = {"new_articles": 0, "new_pdfs": 0, "failed": 0}
+    blocks = []  # 모든 소스를 모아 한 번에 통합 발송
 
     for src_info in sources:
         try:
             new_articles = _crawl_single_source(db, src_info)
             stats["new_articles"] += len(new_articles)
-
-            # 발송
             if new_articles:
-                deliver_to_user(db, user, new_articles, src_info.get("name", ""))
-
+                blocks.append((src_info.get("name", ""), new_articles))
         except Exception as e:
             logger.error(f"소스 크롤링 실패 ({src_info.get('name')}): {e}")
             stats["failed"] += 1
+
+    # 신규 글이 있을 때만 하나의 메시지로 취합 발송 (웹 로그 + 텔레그램 1~2개)
+    if blocks:
+        deliver_combined(db, user, blocks)
 
     return stats
 
