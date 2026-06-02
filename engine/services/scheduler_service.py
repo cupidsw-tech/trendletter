@@ -1,6 +1,7 @@
 """APScheduler: 매분 체크 → 해당 시간의 사용자들 배치 크롤링."""
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -10,12 +11,13 @@ from services.crawl_service import run_batch_crawl
 
 logger = logging.getLogger("trend-letter")
 
+KST = ZoneInfo("Asia/Seoul")
 scheduler = BackgroundScheduler(timezone="Asia/Seoul")
 
 
 def _tick():
-    """매분 실행: 현재 시각에 해당하는 사용자들의 크롤링 수행."""
-    now = datetime.now()
+    """매분 실행: 현재 시각(한국시간)에 해당하는 사용자들의 크롤링 수행."""
+    now = datetime.now(KST)   # 컨테이너 TZ(UTC)와 무관하게 항상 한국시간 기준
     hour = now.hour
     minute = now.minute
 
