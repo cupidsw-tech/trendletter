@@ -108,6 +108,30 @@ def deliver_combined(db: Session, user: User, blocks: list):
                 _log(db, user.id, art.id, "telegram", "sent" if all_ok else "failed")
 
 
+def deliver_resolutions(db: Session, user: User):
+    """'나의 다짐'을 트렌드 요약과 별개의 텔레그램 메시지로 매일 발송.
+
+    트렌드 신규 글 유무와 무관하게 매일 1회. 텔레그램 ON + chat_id + 다짐 내용이
+    모두 있을 때만 발송한다.
+    """
+    text = (user.resolutions or "").strip()
+    if not text:
+        return
+    if not (user.deliver_telegram and user.telegram_chat_id):
+        return
+
+    today = datetime.now().strftime("%Y.%m.%d")
+    e = html.escape
+    lines = [ln.strip().lstrip("•-*").strip() for ln in text.splitlines() if ln.strip()]
+    body = "\n".join(f"• {e(ln)}" for ln in lines) if lines else e(text)
+    msg = f"🌅 <b>오늘의 다짐</b> · {today}\n━━━━━━━━━━━━━━━━━━\n{body}"
+
+    if tg_send(msg, user.telegram_chat_id, parse_mode="HTML"):
+        logger.info(f"  [{user.email}] 오늘의 다짐 발송 완료")
+    else:
+        logger.warning(f"  [{user.email}] 오늘의 다짐 발송 실패")
+
+
 # 하위호환
 def deliver_to_user(db: Session, user: User, articles: list, site_name: str):
     deliver_combined(db, user, [(site_name, articles)])

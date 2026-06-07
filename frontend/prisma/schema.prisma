@@ -30,6 +30,9 @@ model User {
   // 웹 푸시
   pushSubscription String? @map("push_subscription") @db.Text
 
+  // 나의 다짐 (매일 텔레그램 발송)
+  resolutions String? @db.Text
+
   // 뉴스레터 템플릿
   templateId String @default("compact") @map("template_id")
 

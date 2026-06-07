@@ -26,6 +26,8 @@ class User(Base):
     kakao_refresh_token = Column(String, nullable=True)
     push_subscription = Column(Text, nullable=True)
 
+    resolutions = Column(Text, nullable=True)  # '나의 다짐' (매일 텔레그램 발송)
+
     template_id = Column(String, default="compact")
     schedule_hour = Column(Integer, default=8)
     schedule_minute = Column(Integer, default=0)

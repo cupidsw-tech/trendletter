@@ -15,7 +15,7 @@ from src.crawler import crawl_site, fetch_detail, Article as CrawlArticle
 from src.summarizer import summarize
 from src.pdf_handler import download_pdf, extract_text
 from src.utils import truncate, make_hash
-from services.delivery_service import deliver_to_user, deliver_combined
+from services.delivery_service import deliver_to_user, deliver_combined, deliver_resolutions
 
 logger = logging.getLogger("trend-letter")
 
@@ -80,6 +80,12 @@ def run_batch_crawl(db: Session, user_id: str, sources: list[dict]) -> dict:
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return {"error": "User not found"}
+
+    # '나의 다짐'은 트렌드 요약과 별개로, 신규 글 유무와 무관하게 매일 먼저 발송
+    try:
+        deliver_resolutions(db, user)
+    except Exception as e:
+        logger.error(f"오늘의 다짐 발송 실패: {e}")
 
     stats = {"new_articles": 0, "new_pdfs": 0, "failed": 0}
     blocks = []  # 모든 소스를 모아 한 번에 통합 발송

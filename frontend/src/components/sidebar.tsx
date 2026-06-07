@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "대시보드", icon: "📊" },
   { href: "/sources", label: "URL 관리", icon: "🔗" },
   { href: "/articles", label: "아티클", icon: "📄" },
+  { href: "/resolutions", label: "나의 다짐", icon: "🌅" },
   { href: "/settings", label: "설정", icon: "⚙️" },
   { href: "/history", label: "발송 이력", icon: "📋" },
 ];
