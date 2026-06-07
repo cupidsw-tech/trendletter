@@ -22,6 +22,7 @@ logger = logging.getLogger("trend-letter")
 # 수집 정책 (v1 봇과 동일)
 MAX_PER_SITE = 3            # 사이트당 최대 3건 (최근 글 위주)
 MAX_UNDATED_PER_SITE = 1   # 날짜 불명은 사이트당 1건
+RECENT_DAYS = 7            # "최근 글" 기준 일수 (중복제거가 있어 넓혀도 도배 안 됨)
 
 # 영업/안내성 항목 제외 키워드 (제목·파일명 대상)
 NOISE_KEYWORDS = (
@@ -57,16 +58,22 @@ def _parse_date(date_str):
             return datetime.strptime(s[:31].strip(), fmt).strftime("%Y-%m-%d")
         except Exception:
             continue
+    # 연도 없는 MM.DD (예: 아이보스 "06.05") → 올해로 간주
+    m2 = re.search(r"\b(\d{1,2})[.\-/](\d{1,2})\b", s)
+    if m2:
+        mo, d = int(m2.group(1)), int(m2.group(2))
+        if 1 <= mo <= 12 and 1 <= d <= 31:
+            return f"{datetime.now().year:04d}-{mo:02d}-{d:02d}"
     return None
 
 
 def _is_recent(date_str):
-    """최근 1일이면 True / 지난 글 False / 날짜불명 None."""
+    """최근 RECENT_DAYS일 이내면 True / 지난 글 False / 날짜불명 None."""
     d = _parse_date(date_str)
     if not d:
         return None
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    return d >= yesterday
+    cutoff = (datetime.now() - timedelta(days=RECENT_DAYS)).strftime("%Y-%m-%d")
+    return d >= cutoff
 
 
 def _cuid() -> str:

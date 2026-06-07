@@ -398,21 +398,26 @@ def _crawl_iboss(url: str) -> list[Article]:
             page.goto(url, wait_until="networkidle", timeout=30000)
             page.wait_for_timeout(3000)
 
-            # 게시판 목록 번호(ab-3207) → 글 상세 번호(ab-3208-) : 보통 +1
-            m = re.search(r"/ab-(\d+)", url)
-            detail_prefix = f"/ab-{int(m.group(1)) + 1}-" if m else None
-
-            for a in page.query_selector_all("a"):
+            # 행(tr) 단위로 제목+링크+날짜 추출.
+            # 날짜는 td.DateTime의 data-tip="2026.06.05 18:01" 에 전체 날짜가 들어있음.
+            for tr in page.query_selector_all("tr"):
+                a = tr.query_selector("div.articleSubject a") or tr.query_selector("a.mb_subject")
+                if not a:
+                    continue
                 text = (a.inner_text() or "").strip()
                 href = a.get_attribute("href") or ""
                 if not text or len(text) < 8:
                     continue
-                is_detail = (detail_prefix and detail_prefix in href) or \
-                            bool(re.search(r"/ab-\d+-\d+", href))
-                if is_detail:
-                    full_url = urljoin("https://www.i-boss.co.kr", href)
-                    if not any(art.url == full_url for art in articles):
-                        articles.append(Article(title=text, url=full_url))
+                # 상세글 링크만 (ab-2877-17389 형태, 슬래시 유무 무관)
+                if not re.search(r"ab-\d+-\d+", href):
+                    continue
+                date = ""
+                dspan = tr.query_selector("td.DateTime .bstip") or tr.query_selector("td.DateTime span")
+                if dspan:
+                    date = (dspan.get_attribute("data-tip") or dspan.inner_text() or "").strip()
+                full_url = urljoin("https://www.i-boss.co.kr", href)
+                if not any(art.url == full_url for art in articles):
+                    articles.append(Article(title=text, url=full_url, date=date))
 
             browser.close()
     except Exception as e:
