@@ -398,26 +398,52 @@ def _crawl_iboss(url: str) -> list[Article]:
             page.goto(url, wait_until="networkidle", timeout=30000)
             page.wait_for_timeout(3000)
 
-            # 행(tr) 단위로 제목+링크+날짜 추출.
-            # 날짜는 td.DateTime의 data-tip="2026.06.05 18:01" 에 전체 날짜가 들어있음.
-            for tr in page.query_selector_all("tr"):
-                a = tr.query_selector("div.articleSubject a") or tr.query_selector("a.mb_subject")
+            # 아이보스는 게시판마다 레이아웃이 다르다.
+            #  (A) 자료실(ab-3207): 카드 그리드 — div.cell > div.info(.title strong=제목) + div.src span.date(날짜 "2026. 06. 05")
+            #  (B) 뉴스(ab-7214): 테이블 — tr > div.articleSubject a + td.DateTime[data-tip="2026.06.05 18:01"]
+            # 인기글/추천 위젯도 같은 링크 패턴을 갖고 있어, 본문 목록만 골라야 도배·광고성 글을 피한다.
+
+            # (A) 카드 그리드: div.src span.date 가 있는 cell 만 본문 목록으로 인정 (위젯 제외)
+            for cell in page.query_selector_all("div.cell"):
+                info = cell.query_selector("div.info")
+                date_el = cell.query_selector("div.src span.date")
+                if not info or not date_el:
+                    continue
+                a = info.query_selector("a[href*='ab-']")
                 if not a:
                     continue
-                text = (a.inner_text() or "").strip()
                 href = a.get_attribute("href") or ""
-                if not text or len(text) < 8:
-                    continue
-                # 상세글 링크만 (ab-2877-17389 형태, 슬래시 유무 무관)
                 if not re.search(r"ab-\d+-\d+", href):
                     continue
-                date = ""
-                dspan = tr.query_selector("td.DateTime .bstip") or tr.query_selector("td.DateTime span")
-                if dspan:
-                    date = (dspan.get_attribute("data-tip") or dspan.inner_text() or "").strip()
+                title_el = info.query_selector(".title strong") or info.query_selector(".title") or a
+                text = (title_el.inner_text() or "").strip()
+                if not text or len(text) < 5:
+                    continue
+                date = (date_el.inner_text() or "").strip()
                 full_url = urljoin("https://www.i-boss.co.kr", href)
                 if not any(art.url == full_url for art in articles):
                     articles.append(Article(title=text, url=full_url, date=date))
+
+            # (B) 테이블형: 카드 그리드에서 한 건도 못 찾았을 때만 (뉴스 게시판)
+            if not articles:
+                for tr in page.query_selector_all("tr"):
+                    a = tr.query_selector("div.articleSubject a") or tr.query_selector("a.mb_subject")
+                    if not a:
+                        continue
+                    text = (a.inner_text() or "").strip()
+                    href = a.get_attribute("href") or ""
+                    if not text or len(text) < 8:
+                        continue
+                    # 상세글 링크만 (ab-2877-17389 형태, 슬래시 유무 무관)
+                    if not re.search(r"ab-\d+-\d+", href):
+                        continue
+                    date = ""
+                    dspan = tr.query_selector("td.DateTime .bstip") or tr.query_selector("td.DateTime span")
+                    if dspan:
+                        date = (dspan.get_attribute("data-tip") or dspan.inner_text() or "").strip()
+                    full_url = urljoin("https://www.i-boss.co.kr", href)
+                    if not any(art.url == full_url for art in articles):
+                        articles.append(Article(title=text, url=full_url, date=date))
 
             browser.close()
     except Exception as e:

@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 
 import requests
 
@@ -52,7 +53,13 @@ def send_document(filepath: str, chat_id: str, caption: str = "", token: str = "
         return False
 
 
-def _post_message(token: str, chat_id: str, text: str, parse_mode: str = "") -> bool:
+def _post_message(token: str, chat_id: str, text: str, parse_mode: str = "", retries: int = 3) -> bool:
+    """텔레그램 전송 + 일시적 오류(타임아웃/네트워크) 재시도.
+
+    하루 1회뿐인 '오늘의 다짐'이 타임아웃 한 번에 통째로 누락되던 문제를 막기 위해
+    최대 retries회까지 점증 대기(backoff) 후 재시도한다. HTML 파싱 오류(400)는
+    평문으로 한 번 강등해 재시도한다.
+    """
     url = f"{API_BASE.format(token=token)}/sendMessage"
     payload = {
         "chat_id": chat_id,
@@ -61,18 +68,25 @@ def _post_message(token: str, chat_id: str, text: str, parse_mode: str = "") -> 
     }
     if parse_mode:
         payload["parse_mode"] = parse_mode
-    try:
-        resp = requests.post(url, json=payload, timeout=30)
-        if resp.status_code == 200:
-            return True
-        logger.error(f"텔레그램 메시지 전송 실패: {resp.status_code} {resp.text[:200]}")
-        if parse_mode:  # HTML 파싱 오류 시 평문 재시도
-            payload.pop("parse_mode", None)
-            return requests.post(url, json=payload, timeout=30).status_code == 200
-        return False
-    except Exception as e:
-        logger.error(f"텔레그램 메시지 전송 오류: {e}")
-        return False
+
+    last_err = ""
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.post(url, json=payload, timeout=30)
+            if resp.status_code == 200:
+                return True
+            # HTML 파싱 오류는 평문으로 강등해 재시도 (재시도 횟수 소모 없이)
+            if payload.get("parse_mode") and resp.status_code == 400:
+                payload.pop("parse_mode", None)
+                continue
+            last_err = f"{resp.status_code} {resp.text[:200]}"
+        except Exception as e:
+            last_err = str(e)
+        if attempt < retries:
+            time.sleep(2 * attempt)  # 2s, 4s, ...
+
+    logger.error(f"텔레그램 메시지 전송 실패(재시도 {retries}회): {last_err}")
+    return False
 
 
 def _split(text: str) -> list[str]:

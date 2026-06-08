@@ -48,7 +48,8 @@ def _parse_date(date_str):
     if not date_str:
         return None
     s = date_str.strip()
-    m = re.search(r"(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})", s)
+    # "2026. 06. 05"(아이보스 자료실) 처럼 구분자 뒤 공백이 있는 형식도 허용
+    m = re.search(r"(\d{4})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})", s)
     if m:
         y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
         return f"{y:04d}-{mo:02d}-{d:02d}"
