@@ -398,52 +398,59 @@ def _crawl_iboss(url: str) -> list[Article]:
             page.goto(url, wait_until="networkidle", timeout=30000)
             page.wait_for_timeout(3000)
 
-            # 아이보스는 게시판마다 레이아웃이 다르다.
-            #  (A) 자료실(ab-3207): 카드 그리드 — div.cell > div.info(.title strong=제목) + div.src span.date(날짜 "2026. 06. 05")
-            #  (B) 뉴스(ab-7214): 테이블 — tr > div.articleSubject a + td.DateTime[data-tip="2026.06.05 18:01"]
-            # 인기글/추천 위젯도 같은 링크 패턴을 갖고 있어, 본문 목록만 골라야 도배·광고성 글을 피한다.
+            # 아이보스는 게시판 레이아웃을 자주 바꾼다(테이블→카드그리드→resource-item ...).
+            # 그래서 특정 셀렉터에 의존하지 않고, 게시글 링크(ab-게시판-글번호)를 기준으로
+            # 수집한다. 글번호는 순차 증가하므로 "번호 내림차순 = 최신순"이라, 사이트가
+            # 또 개편돼도(정렬 버튼이 '인기/다운로드순'으로 떠도) 항상 최신글이 위로 온다.
+            # 제목: resource-title/articleSubject/strong → 썸네일 alt → 링크 텍스트 순 fallback.
+            # 날짜: resource-date/.date/td.DateTime[data-tip] → 컨테이너 내 날짜 패턴 fallback.
+            rows = page.evaluate(r"""() => {
+                // 글 링크 후보 수집. href는 ab-<게시판>-<글번호> 형태.
+                // 댓글 앵커(...#CmtList)와 메뉴/카테고리(ab-3207 등 단일번호)는 제외.
+                const cand = [];
+                document.querySelectorAll("a[href]").forEach(a => {
+                    const href = a.getAttribute('href') || '';
+                    if (href.includes('#')) return;
+                    const m = href.match(/ab-(\d+)-(\d+)/);
+                    if (!m) return;
+                    cand.push({a, board: m[1], num: parseInt(m[2], 10), href});
+                });
+                if (!cand.length) return [];
+                // 한 페이지에 여러 게시판 링크(사이드바 새글/인기글 등)가 섞인다.
+                // 게시판마다 글번호 체계가 달라 비교가 무의미하므로, 글이 가장 많은
+                // '주력 게시판' 하나로 한정한 뒤 그 안에서 글번호 내림차순 = 최신순.
+                const cnt = {};
+                cand.forEach(it => { cnt[it.board] = (cnt[it.board] || 0) + 1; });
+                let board = null, best = -1;
+                for (const k in cnt) { if (cnt[k] > best) { best = cnt[k]; board = k; } }
 
-            # (A) 카드 그리드: div.src span.date 가 있는 cell 만 본문 목록으로 인정 (위젯 제외)
-            for cell in page.query_selector_all("div.cell"):
-                info = cell.query_selector("div.info")
-                date_el = cell.query_selector("div.src span.date")
-                if not info or not date_el:
-                    continue
-                a = info.query_selector("a[href*='ab-']")
-                if not a:
-                    continue
-                href = a.get_attribute("href") or ""
-                if not re.search(r"ab-\d+-\d+", href):
-                    continue
-                title_el = info.query_selector(".title strong") or info.query_selector(".title") or a
-                text = (title_el.inner_text() or "").strip()
-                if not text or len(text) < 5:
-                    continue
-                date = (date_el.inner_text() or "").strip()
-                full_url = urljoin("https://www.i-boss.co.kr", href)
-                if not any(art.url == full_url for art in articles):
-                    articles.append(Article(title=text, url=full_url, date=date))
+                const map = new Map();
+                cand.filter(it => it.board === board).forEach(it => {
+                    const a = it.a;
+                    const box = a.closest('.resource-item, .cell, tr, li, article') || a.parentElement || a;
+                    let title = '';
+                    const tEl = box.querySelector('.resource-title, .articleSubject a .ellipsis-1, .articleSubject a, .title strong, .title, strong, h3, h4');
+                    if (tEl) title = (tEl.innerText || '').trim();
+                    if (!title) { const img = a.querySelector('img') || box.querySelector('img'); if (img) title = (img.getAttribute('alt') || '').trim(); }
+                    if (!title) title = (a.innerText || '').replace(/\s+/g, ' ').trim();
+                    let date = '';
+                    const dEl = box.querySelector('.resource-date, .date, td.DateTime .bstip, td.DateTime span, time');
+                    if (dEl) date = (dEl.getAttribute('data-tip') || dEl.innerText || '').trim();
+                    if (!date) { const mm = (box.innerText || '').match(/\d{4}[.\-/]\s*\d{1,2}[.\-/]\s*\d{1,2}/); if (mm) date = mm[0]; }
+                    const url = new URL(it.href, location.origin).href;
+                    const prev = map.get(url);
+                    if (!prev || (title && title.length > prev.title.length)) map.set(url, {url, title, date, num: it.num});
+                });
+                return Array.from(map.values()).sort((x, y) => y.num - x.num);  // 최신순(글번호 내림차순)
+            }""")
 
-            # (B) 테이블형: 카드 그리드에서 한 건도 못 찾았을 때만 (뉴스 게시판)
-            if not articles:
-                for tr in page.query_selector_all("tr"):
-                    a = tr.query_selector("div.articleSubject a") or tr.query_selector("a.mb_subject")
-                    if not a:
-                        continue
-                    text = (a.inner_text() or "").strip()
-                    href = a.get_attribute("href") or ""
-                    if not text or len(text) < 8:
-                        continue
-                    # 상세글 링크만 (ab-2877-17389 형태, 슬래시 유무 무관)
-                    if not re.search(r"ab-\d+-\d+", href):
-                        continue
-                    date = ""
-                    dspan = tr.query_selector("td.DateTime .bstip") or tr.query_selector("td.DateTime span")
-                    if dspan:
-                        date = (dspan.get_attribute("data-tip") or dspan.inner_text() or "").strip()
-                    full_url = urljoin("https://www.i-boss.co.kr", href)
-                    if not any(art.url == full_url for art in articles):
-                        articles.append(Article(title=text, url=full_url, date=date))
+            for r in rows:
+                title = (r.get("title") or "").strip()
+                # 목록 UI 뱃지("새글/공지/인기") 접두어 제거
+                title = re.sub(r"^(새\s*글|공지|인기|HOT)\s+", "", title).strip()
+                if not title or len(title) < 5:
+                    continue
+                articles.append(Article(title=title, url=r["url"], date=(r.get("date") or "").strip()))
 
             browser.close()
     except Exception as e:
