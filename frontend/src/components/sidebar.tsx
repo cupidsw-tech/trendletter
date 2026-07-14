@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
-import { isAdminEmail } from "@/lib/admin";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "대시보드", icon: "📊" },
@@ -18,10 +16,8 @@ const ADMIN_ITEM = { href: "/admin", label: "관리자", icon: "🛠️" };
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { data: session } = useSession();
-  const NAV = isAdminEmail(session?.user?.email)
-    ? [...NAV_ITEMS, ADMIN_ITEM]
-    : NAV_ITEMS;
+  // 로그인 제거(단일 소유자=관리자): 관리자 메뉴 항상 표시
+  const NAV = [...NAV_ITEMS, ADMIN_ITEM];
 
   return (
     <>
@@ -48,14 +44,6 @@ export function Sidebar() {
             </Link>
           ))}
         </nav>
-        <div className="p-3 border-t">
-          <button
-            onClick={() => signOut({ callbackUrl: "/" })}
-            className="w-full px-3 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg text-left"
-          >
-            로그아웃
-          </button>
-        </div>
       </aside>
 
       {/* Mobile bottom nav */}
