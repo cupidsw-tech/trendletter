@@ -10,10 +10,28 @@ export default async function AdminPage() {
   if (!user) redirect("/login");
   if (!isAdminEmail(user.email)) redirect("/dashboard");
 
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: "desc" },
-    include: { _count: { select: { sources: true } } },
-  });
+  // DB(Neon) 다운 시 500 대신 안내
+  let users: Array<any> = [];
+  let dbError = false;
+  try {
+    users = await prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { sources: true } } },
+    });
+  } catch {
+    dbError = true;
+  }
+
+  if (dbError) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold mb-1">🛠️ 관리자 · 회원 관리</h1>
+        <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-6 text-amber-800">
+          데이터베이스(Neon) 점검 중입니다. 컴퓨트 쿼터가 회복되면 자동으로 정상 표시됩니다.
+        </div>
+      </div>
+    );
+  }
 
   const totalSources = users.reduce((s, u) => s + u._count.sources, 0);
   const tgCount = users.filter((u) => u.deliverTelegram).length;
