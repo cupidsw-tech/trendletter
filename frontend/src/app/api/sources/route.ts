@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
+import { FALLBACK_SOURCES } from "@/lib/fallback-sources";
 
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json([], { status: 401 });
 
-  const sources = await prisma.source.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json(sources);
+  try {
+    const sources = await prisma.source.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+    });
+    // DB에 소스가 없거나(시드 전) 정상 조회 시 DB 값 반환
+    return NextResponse.json(sources);
+  } catch {
+    // Neon 다운 등 DB 장애 → 실제 발송 소스(urls.json 스냅샷)로 폴백
+    return NextResponse.json(FALLBACK_SOURCES, {
+      headers: { "x-source": "fallback-urls-json" },
+    });
+  }
 }
 
 export async function POST(req: NextRequest) {

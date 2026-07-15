@@ -16,6 +16,7 @@ const CATEGORIES = ["AI", "광고", "마케팅", "주식", "유통", "리워드"
 export default function SourcesPage() {
   const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
+  const [readOnly, setReadOnly] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newUrl, setNewUrl] = useState("");
@@ -29,7 +30,10 @@ export default function SourcesPage() {
   async function fetchSources() {
     setLoading(true);
     const res = await fetch("/api/sources");
-    if (res.ok) setSources(await res.json());
+    if (res.ok) {
+      setReadOnly(res.headers.get("x-source") === "fallback-urls-json");
+      setSources(await res.json());
+    }
     setLoading(false);
   }
 
@@ -77,6 +81,13 @@ export default function SourcesPage() {
           {showForm ? "취소" : "+ URL 추가"}
         </button>
       </div>
+
+      {readOnly && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+          데이터베이스 점검 중입니다. 현재 목록은 <b>실제 매일 발송에 쓰이는 소스(18개)</b>이며,
+          지금은 <b>읽기 전용</b>이라 추가·삭제가 저장되지 않습니다. (DB 복구 후 정상화)
+        </div>
+      )}
 
       {/* Add form */}
       {showForm && (
